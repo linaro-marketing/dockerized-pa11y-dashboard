@@ -120,7 +120,7 @@ objects:
 
               spec:
                   containers:
-                      - image: pa11y-dashboard:latest
+                      - image: squareweave/pa11y-dashboard:latest
                         name: pa11y-dashboard
 
                         env:
