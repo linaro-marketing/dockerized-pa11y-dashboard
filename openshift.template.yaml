@@ -1,0 +1,166 @@
+#
+# Openshift Template
+#
+# Run with:
+#
+#   oc process -f openshift.template.yaml | oc create -f -
+
+kind: Template
+apiVersion: v1
+
+metadata:
+    name: pa11y-dashboard
+
+parameters:
+    - name: URL
+      description: URL to expose
+
+objects:
+    - kind: ImageStream
+      apiVersion: v1
+
+      metadata:
+          name: pa11y-dashboard
+
+      spec:
+          dockerImageRepository: squareweave/pa11y-dashboard
+
+    - kind: Service
+      apiVersion: v1
+
+      metadata:
+          name: database
+
+      spec:
+        ports:
+        - name: mongodb
+          port: 27017
+          protocol: TCP
+          targetPort: 27017
+
+        selector:
+          name: database
+
+        sessionAffinity: None
+        type: ClusterIP
+
+    - kind: DeploymentConfig
+      apiVersion: v1
+
+      metadata:
+          name: database
+
+      spec:
+          selector:
+              name: database
+              deploymentconfig: database
+
+          template:
+              metadata:
+                  labels:
+                      name: database
+
+              spec:
+                  containers:
+                      - image: mongo:3.3
+                        namespace: docker-upstream
+                        name: mongo
+
+          triggers:
+              - type: ConfigChange
+
+              - type: ImageChange
+                imageChangeParams:
+                  automatic: true
+                  containerNames:
+                      - mongo
+
+                  from:
+                    kind: ImageStreamTag
+                    name: mongo:3.3
+                    namespace: docker-upstream
+
+    - kind: Service
+      apiVersion: v1
+
+      metadata:
+          name: dashboard
+
+      spec:
+        ports:
+        - name: http
+          port: 80
+          protocol: TCP
+          targetPort: 80
+
+        selector:
+          name: dashboard
+
+        sessionAffinity: None
+        type: ClusterIP
+
+    - kind: DeploymentConfig
+      apiVersion: v1
+
+      metadata:
+          name: dashboard
+
+      spec:
+          selector:
+              name: dashboard
+              deploymentconfig: dashboard
+
+          strategy:
+              resources: {}
+
+          template:
+              metadata:
+                  labels:
+                      name: dashboard
+
+              spec:
+                  containers:
+                      - image: pa11y-dashboard:latest
+                        name: pa11y-dashboard
+
+                        env:
+                            - name: WEBSERVICE_DATABASE
+                              value: mongodb://database/pa11y
+
+                        readinessProbe:
+                            initialDelaySeconds: 10
+                            tcpSocket:
+                                port: 80
+
+                        livenessProbe:
+                            initialDelaySeconds: 10
+                            tcpSocket:
+                                 port: 80
+
+          triggers:
+              - type: ConfigChange
+
+              - type: ImageChange
+                imageChangeParams:
+                  automatic: true
+                  containerNames:
+                      - pa11y-dashboard
+
+                  from:
+                    kind: ImageStreamTag
+                    name: pa11y-dashboard:latest
+
+    - kind: Route
+      apiVersion: v1
+      metadata:
+        name: dashboard
+
+      spec:
+        host: ${URL}
+        to:
+          kind: Service
+          name: dashboard
+
+        tls:
+            termination: edge
+            insecureEdgeTerminationPolicy: Redirect
