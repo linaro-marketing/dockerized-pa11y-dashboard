@@ -3,17 +3,19 @@ version: '2'
 services:
     database:
         image: mongo:3.3
-
+        volumes:
+        - db_data:/data/db
     dashboard:
         build:
             context: .
-
         ports:
             - 80:80
             - 3000:3000
-
         environment:
             WEBSERVICE_DATABASE: mongodb://database/pa11y
-
         links:
             - database
+# You should use persistant storage for this,
+# as if the volume is deleted, everything is gone!
+volumes:
+  db_data:
